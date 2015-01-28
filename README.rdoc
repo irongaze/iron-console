@@ -1,0 +1,89 @@
+= GEM: iron-console
+
+Written by Rob Morris @ Irongaze Consulting LLC (http://irongaze.com)
+
+== DESCRIPTION
+
+A robust framework for Linux console applets using Ruby.  Framework consists of a command line parser, plus a set of one or more
+action classes that specify their arguments and options in a simple DSL builder format.  The framework matches action requirements
+against the command line, determines the correct action, and invokes it.
+
+Provides out-of-the box automated --version and --help generation.
+
+Provides console input and output with coloring, indenting and other layout support, including progress widgets and other advanced
+text UI elements.
+
+Extensively spec'd and tested, but bug reports are always welcome!
+
+== CLASSES
+
+* 
+
+== SYNOPSIS
+
+To use:
+
+    require 'iron/console'
+
+Sample script:
+
+    #!/usr/bin/env ruby
+    # hello - a sample console script
+
+    # Load our library of console classes
+    require 'iron/console'
+
+    # Define our application
+    Console.app do
+      version '1.0'
+      about   'Says hello'
+    end
+    
+    # Define an action (you can have many different actions if you like)
+    class HelloAction < Console::Action
+      args do
+        string 'person', "Person that you would like to greet", :default => 'Rob'
+      end
+      
+      def invoke
+        Console.p "Hello, #{args[:person]}!"
+      end
+    end
+    
+    # Parse the command line, pick an action, invoke it
+    Console.execute!
+    
+Running the script will produce:
+
+    $ hello
+    Hello, Rob!
+    $ hello Nancy
+    Hello, Nancy!
+    $ hello --version
+    1.0
+    $ hello --help
+  
+      Usage:
+        hello ["<person>"]
+  
+      Arguments:
+        person : Person that you would like to greet        
+
+== REQUIREMENTS
+
+* Ruby 1.9.2 or later
+* iron-extensions and iron-dsl gems
+
+== INSTALL
+
+To install, simply run:
+
+    sudo gem install iron-console
+    
+RVM users can skip the sudo:
+    
+    gem install iron-console
+
+Once installed, require with:
+
+    require 'iron/console'

@@ -1,0 +1,265 @@
+#!/usr/bin/env ruby
+require File.expand_path(File.join(File.dirname(__FILE__), '..', 'lib', 'iron', 'console'))
+
+# Define our application
+Console.app do
+  version '1.0'
+  about   'Generates new Ruby script skeletons based on the iron-console script framework'
+  author  'Irongaze Consulting LLC (www.irongaze.com)'
+  action_priority :args, :options, :generate
+end
+
+class OptionsAction < Console::Action
+
+  # What we do
+  desc 'Print information on specifying options for your script actions'
+
+  # Set up our args
+  args do
+    string 'Key', :options => ['opts', 'options']
+  end
+
+  # Show help info
+  def invoke
+    Console.indent do
+      br
+      bright.p "Script Options Specification"
+      hr
+      p "Each action for a console app can specify one or more options it supports.  These options allow modification of defaults, " +
+        "switching behaviors, etc."
+      br
+      p "The options are specified in the 'options do ... end' section at the head of your action class definition.  All options " +
+        "specifications follow the same pattern and types as arguments, with the exception that options can specify a 'flag' " +
+        "option to tell the app what single character to use for the option, ie:"
+      br
+      p "options do"
+      p "  bool 'Create', flag: 'c'"
+      p "end"
+      br
+      p "...would allow you to call 'your-script -c' to set the Create option to true."
+      br
+      p "For information on supported types and other basic settings, run 'create-script args'"
+      br
+    end
+  end
+  
+end
+
+# Our action to take
+class ArgsAction < Console::Action
+
+  # What we do
+  desc 'Print information on how to specify command-line arguments for your script actions'
+
+  # Set up our args
+  args do
+    string 'Key', :options => ['args', 'arguments']
+  end
+
+  # Show help info
+  def invoke
+    Console.indent do
+      br
+      bright.p "Script Argument Specification"
+      hr
+      p "Each action for a console app must specify a set of arguments it expects.  Doing so allows the app to parse the command-line " +
+        "input, match the given arguments to find a runnable action, and pass those arguments to the action in the args hash."
+      br
+      p "The arguments are specified in the 'args do ... end' section at the head of the action class definition.  All argument " +
+        "specs follow the same pattern:"
+      br
+      indent do
+        p '<type> "<name>", ["<desc>"], [<options...>]'
+      end
+      br
+      p 'The standard options available for all argument types are:'
+      br
+      indent do
+        p ':default => <value> : Sets a default value for use in case arg matching doesn\'t provide a value'
+        p ':required => false  : Make this arg optional'
+        p ':optional => true   : Identical to above'
+      end
+      br
+      p "Arguments will be available in your action's invoke() method using 'args[<key>]', where <key> is the symbol form of " +
+        "the argument's name, ie bool 'Restart Server' will be available as 'args[:restart_server]'."
+      br
+      p "Argument values will generally be returned as strings, but may be coerced to a more Ruby-esque value as specified below."
+      br
+      p 'The available argument types are as follows:'
+      br
+      indent do
+        {
+          :const => {
+            :desc => "Require a given constant in that argument position, usually used as a first argument for determining which action to take"
+          },
+          :string => {
+            :desc => "Accepts an arbitrary, or limited selection, of strings as input",
+            :options => [':options => <"a string"|["an array", "of strings"]> : Limit this arg to matching on one or more specified strings']
+          },
+          :bool => {
+            :desc => "Accepts a boolean value in true/false, yes/no, or on/off format, available as Ruby true or false"
+          },
+          :int => {
+            :desc => "Accepts an integer value, available as a Ruby int"
+          },
+          :wildcard => {
+            :desc => "Match all remaining args - must be last argument specified, useful for taking a list of files/names/whatevers to work on, available as a Ruby array of matched arguments"
+          }
+        }.each_pair do |type, info|
+          bright.p type
+          br
+          p 'Description:'
+          indent do
+            p info[:desc]
+          end
+          if info[:options]
+            p 'Custom options:'
+            indent do
+              p info[:options].join("\n")
+            end
+          end
+          br
+        end
+      end
+    end
+  end
+end
+
+# Our action to take
+class GenerateAction < Console::Action
+
+  # Some attributes we'll use in generation
+  attr_accessor :name, :actions, :action_keys, :path
+
+  # Help info
+  desc 'Generates a new script file in the current directory, optionally stubbing out new actions.  If no ' +
+   'actions are specified, new script is created with a "default" action that simply prints out ' +
+   'any arguments and options passed to the action.'
+
+  # Set up our args
+  args do 
+    string 'script name', 'Name of the script file to generate, eg "my-script"'
+    wildcard 'actions', 'Actions to stub out in new script, eg "list", "restart-server", etc.', :default => ['default']
+  end
+
+  # And our options
+  options do
+    bool 'Lib', 'Create library directory for use in breaking out code?', :default => false
+  end
+
+  # Perform our action - generate a new script file
+  def invoke
+    @name = args[:script_name]
+    @actions = args[:actions].collect {|a| a.split(/[_\-]/).collect{|n| n.downcase.capitalize}.join}
+    @action_keys = args[:actions].collect {|a| a.gsub('-', '_').downcase}
+    @path = File.expand_path(File.join('.', @name))
+
+    Console.out do
+      br
+      hr
+      p 'Generate script: ' + @name
+      p '   with actions: ' + @actions.join(', ')
+      p '   with library: ' + (options[:lib] ? 'in a sub-directory' : 'in the script file (no sub-directory)')
+      hr
+    
+      confirm? 'Create this script?'
+      br
+
+      indent do
+        output_script
+      end
+
+      br
+      p "Script #{@name} created!"
+      br
+    end
+  end
+
+  def output_script
+    File.open(@path, 'w') do |f|
+      # Write out base script setup
+      f.write app_template
+
+      # Add in each action if not in lib mode
+      unless options[:lib]
+        @actions.each do |action|
+          f.write action_template(action)
+        end
+      end
+
+      # Add in execute call
+      f.write("Console.execute!\n")
+    end
+
+    # Mark script as executable
+    File.chmod(0755, @path)
+    Console.writeln 'Created: ' + @path
+
+    if options[:lib]
+      # If we're in lib mode, need to create sub-dir
+      subdir = @path + '-lib'
+      FileUtils.mkdir subdir #:mode => 0700
+      @actions.each_with_index do |action, i|
+        key = @action_keys[i]
+        path = File.join(subdir, key+'_action.rb')
+        File.open(path, 'w') do |f|
+          f.write action_template(action)
+        end
+        Console.writeln 'Created: ' + path
+      end
+    end
+  end
+
+  def app_template
+    name = `whoami`.strip
+    return <<-eos
+#!/usr/bin/env ruby
+require 'iron/console'
+
+# Define our application
+Console.app do
+  version '1.0'
+  about   'Your app description'
+  author  '#{name}'
+end
+
+eos
+  end
+
+  def action_template(name)
+    return <<-eos
+class #{name}Action < Console::Action
+  # Describe this action for help
+  desc "The #{name} action..."
+  
+  # Set up our argument requirements
+  args do
+    # Add argument definitions here, or leave blank if none required
+    # Run 'create-script args' for more information
+    const '#{name.gsub(/([a-z])([A-Z])/,'\1-\2').to_dashcase}'
+  end
+  
+  # Set up option definitions
+  options do
+    # Options can be placed anywhere on the command line and can be
+    # single chars (eg "-x", "-acf", "-y=full") or long-form (eg "--flag", "--no-flag", "--site=xyz.com")
+    # Run 'create-script options' for more information
+  end
+
+  # Take this action
+  def invoke
+    Console.out do
+      p '#{name} action taken.'
+      p 'Args: ' + args.inspect
+      p 'Options: ' + options.inspect
+    end
+  end
+end
+
+eos
+  end
+
+end
+
+# Run the app
+Console.execute!

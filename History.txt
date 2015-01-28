@@ -1,0 +1,10 @@
+== 1.0.0 / 2012-03-16
+
+* Broke out code from older irongaze gem
+* Added tons of specs
+* Converted code to use new DslProxy-based builder syntax for app definition, argument definition and console block output
+* Revamped argument matching to be much more robust using branching match algorithm to better handle optional arguments
+* Removed Set argument spec type and replaced it with explicit options specification system similar to arg spec system
+* Updated --help handling to show basic about info + list of available actions when called without argument
+* Added --version support to all scripts
+* Added to GitHub
